@@ -2,6 +2,11 @@ AllCops:
   TargetRubyVersion: 3.0
   NewCops: enable
 
+require:
+  - rubocop-performance
+  - rubocop-rake
+  - rubocop-rspec
+
 Metrics:
   Enabled: false
 
@@ -15,4 +20,46 @@ Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
 
 Style/SpecialGlobalVars:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/StringConcatenation:
+  Enabled: false
+
+Naming/VariableNumber:
+  EnforcedStyle: snake_case
+  AllowedIdentifiers:
+    - sha256
+
+RSpec/ImplicitSubject:
+  Enabled: false
+
+RSpec/RepeatedExample:
+  Enabled: false
+
+Security/MarshalLoad:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  Enabled: false
+
+RSpec/InstanceVariable:
+  Enabled: false
+
+RSpec/BeforeAfterAll:
+  Enabled: false
+
+RSpec/ExpectInHook:
+  Enabled: false
+
+RSpec/ContextWording:
+  Prefixes:
+    - after
+
+RSpec/NestedGroups:
   Enabled: false

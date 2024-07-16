@@ -3,7 +3,10 @@
 require "rubygems/gemcutter_utilities"
 
 module RequestHelpers
-  attr_reader :last_response
+  def self.included(base)
+    super
+    base.attr_reader :last_response
+  end
 
   def build_gem(name, version, platform: nil)
     spec = Gem::Specification.new do |s|
@@ -136,7 +139,7 @@ module RequestHelpers
       request["Content-Type"] = "application/x-www-form-urlencoded"
       request.add_field "Authorization", Pusher.api_key
     end.tap do
-      expect(last_response).to expected_to
+      expect(last_response).to expected_to, last_response.body
       set_time @time + 60
     end
   end
@@ -244,6 +247,10 @@ module RequestHelpers
       response.code == "409"
     end
 
+    def forbidden?
+      response.code == "403"
+    end
+
     def ==(other)
       return false unless other.is_a?(self.class)
 
@@ -281,7 +288,7 @@ module RequestHelpers
       values_match?(@value, @header_value)
     end
 
-    failure_message do |response|
+    failure_message do |_response|
       super() + ", but got: #{description_of(@header_value)}"
     end
 
@@ -344,8 +351,8 @@ module RequestHelpers
              else
                Zlib.gunzip(body)
              end
-      @actual = Marshal.load(body) # rubocop:disable Security/MarshalLoad
-      expect(@actual).to eq(expected)
+      @actual = Marshal.load(body)
+      values_match?(expected, @actual)
     end
 
     chain :inflate, :must_inflate

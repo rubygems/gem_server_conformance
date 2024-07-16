@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "compact_index"
 require "rubygems/package"
 require "sinatra/base"
@@ -94,7 +96,7 @@ module GemServerConformance
     end
 
     def reorder_versions
-      @versions.group_by(&:rubygem_name).each do |name, versions|
+      @versions.group_by(&:rubygem_name).each_value do |versions|
         numbers = versions.map(&:number).sort.reverse
 
         versions.each do |version|
@@ -116,7 +118,8 @@ module GemServerConformance
       end
 
       version = Version.new(package.spec.name, package.spec.version.to_s, package.spec.platform, nil,
-                            true, package.spec.version.prerelease?, Digest::SHA256.hexdigest(gem), nil, nil, @time, package)
+                            true, package.spec.version.prerelease?, Digest::SHA256.hexdigest(gem), nil, nil,
+                            @time, package)
       @versions << version
       reorder_versions
       version.info_checksum = Digest::MD5.hexdigest(info(version.rubygem_name).last.join)
@@ -163,9 +166,10 @@ module GemServerConformance
     end
 
     def versions
+      gems = compact_index_gem_versions(separate_yanks: true, after: @versions_file.updated_at.to_time)
       [200, {},
        # calculate_info_checksums: true breaks with yanks
-       [@versions_file.contents(compact_index_gem_versions(separate_yanks: true, after: @versions_file.updated_at.to_time))]]
+       [@versions_file.contents(gems)]]
     end
 
     def info(name)
