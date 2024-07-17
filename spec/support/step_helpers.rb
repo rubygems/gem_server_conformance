@@ -139,8 +139,8 @@ module StepHelpers
               @upstream_output = Tempfile.create("upstream.out").path
               Bundler.with_original_env do
                 @upstream = "http://localhost:4567"
-                @pid = spawn("ruby", "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: @upstream_output,
-                                                                                                err: @upstream_output)
+                @pid = spawn(Gem.ruby, "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: @upstream_output,
+                                                                                                  err: @upstream_output)
                 raise "failed to start server" unless @pid
               end
             end
