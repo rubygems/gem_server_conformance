@@ -155,26 +155,28 @@ module RequestHelpers
       request.body = body
       request["Content-Length"] = body.to_s
       request["Content-Type"] = "text/plain"
-    end.tap { expect(_1.code).to eq "200" }
+    end.tap do |response|
+      expect(response.code).to eq "200"
+    end
   end
 
   def rebuild_versions_list
-    rubygems_api_request( # rubocop:disable Lint/EmptyBlock
+    rubygems_api_request(
       :post,
       "rebuild_versions_list",
       upstream
-    ) { |_| }.tap do
-      expect(_1.code).to eq "200"
+    ) { nil }.tap do |response|
+      expect(response.code).to eq "200"
       set_time @time + 3600
     end
   end
 
   def get_versions # rubocop:disable Naming/AccessorMethodName
-    rubygems_api_request( # rubocop:disable Lint/EmptyBlock
+    rubygems_api_request(
       :get,
       "versions",
       upstream
-    ) {}
+    ) { nil }
   end
 
   def get_names # rubocop:disable Naming/AccessorMethodName
@@ -182,7 +184,7 @@ module RequestHelpers
       :get,
       "names",
       upstream
-    ) {}
+    ) { nil }
   end
 
   def get_info(name)
@@ -190,7 +192,7 @@ module RequestHelpers
       :get,
       "info/#{name}",
       upstream
-    ) {}
+    ) { nil }
   end
 
   def get_gem(name)
@@ -198,7 +200,7 @@ module RequestHelpers
       :get,
       "gems/#{name}.gem",
       upstream
-    ) {}
+    ) { nil }
   end
 
   def get_quick_spec(name)
@@ -206,16 +208,16 @@ module RequestHelpers
       :get,
       "quick/Marshal.4.8/#{name}.gemspec.rz",
       upstream
-    ) {}
+    ) { nil }
   end
 
   def get_specs(name = nil)
     path = [name, "specs.4.8.gz"].compact.join("_")
     rubygems_api_request(
       :get,
-      "#{path}",
+      path,
       upstream
-    ) {}
+    ) { nil }
   end
 
   class MockResponse

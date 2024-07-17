@@ -1,24 +1,16 @@
 # GemServerConformance
 
-TODO: Delete this and the text below, and describe your gem
-
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/gem_server_conformance`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-## Installation
-
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
-
-    $ bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
-
-If bundler is not being used to manage dependencies, install the gem by executing:
-
-    $ gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+A conformance test suite for RubyGems servers.
 
 ## Usage
 
-TODO: Write usage instructions here
+Run `gem_server_conformance` to run the test suite against a server. The endpoint to test can be specified with the `UPSTREAM` environment variable. Make sure to set the `GEM_HOST_API_KEY` environment variable to an API key with push/yank permissions if authentication is required.
+
+In addition to the standard interface,
+you will also need to define the following endpoints:
+
+- `POST /set_time` - Set the server's time to the value of the body's iso8601 value.
+- `POST /rebuild_versions_list` - Rebuild the base /versions file.
 
 ## Development
 
@@ -28,7 +20,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/gem_server_conformance.
+Bug reports and pull requests are welcome on GitHub at https://github.com/rubygems/gem_server_conformance.
 
 ## License
 

@@ -6,14 +6,12 @@ Gem::Specification.new do |spec|
   spec.name = "gem_server_conformance"
   spec.version = GemServerConformance::VERSION
   spec.authors = ["Samuel Giddins"]
-  spec.email = ["segiddins@segiddins.me"]
+  spec.email = ["segiddins@rubycentral.org"]
 
-  spec.summary = "GemServerConformance is a gem that does something."
+  spec.summary = "A conformance test suite for RubyGems servers."
   spec.homepage = "https://github.com/rubygems/gem_server_conformance"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
-
-  spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
 
   spec.metadata["homepage_uri"] = spec.homepage
 
@@ -23,7 +21,7 @@ Gem::Specification.new do |spec|
   spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true).reject do |f|
       (f == gemspec) ||
-        f.start_with?(*%w[bin/ test/ features/ .git .github appveyor Gemfile])
+        f.start_with?(*%w[bin/ features/ .git .github appveyor Gemfile Rakefile])
     end
   end
   spec.bindir = "exe"
