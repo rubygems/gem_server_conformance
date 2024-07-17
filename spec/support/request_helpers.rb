@@ -23,6 +23,34 @@ module RequestHelpers
     end
   end
 
+  module PackageGzipToConsistentOS
+    class IOWrapper < SimpleDelegator
+      def write(str)
+        str[9] = "\x03".b if str.size == 10 && str.start_with?("\x1f\x8b".b)
+        super
+      end
+    end
+
+    def gzip_to(io, &blk)
+      super(IOWrapper.new(io), &blk)
+    end
+  end
+
+  ::Gem::Dependency.class_eval do
+    if Gem::Dependency.method_defined?(:to_yaml_properties)
+      prepend(
+        Module.new do
+          def to_yaml_properties
+            expected = %i[@name @requirement @type @prerelease @version_requirements]
+            actual = super
+
+            (expected & actual) + (actual - expected)
+          end
+        end
+      )
+    end
+  end
+
   def build_gem(name, version, platform: nil)
     spec = Gem::Specification.new do |s|
       s.name = name
@@ -40,9 +68,16 @@ module RequestHelpers
     package = Gem::Package.new(StringIO.new.binmode)
     package.build_time = Time.utc(1970)
     package.spec = spec
+    package.singleton_class.prepend(PackageGzipToConsistentOS)
     package.gem.singleton_class.send(:define_method, :path) { "" }
 
     package.build
+
+    if ENV["DUMP_BUILD_GEM"]
+      tmp = "build_gem/#{RUBY_ENGINE}/rubygems-#{Gem::VERSION}/#{@time}"
+      FileUtils.mkdir_p(tmp)
+      File.binwrite("#{tmp}/#{spec.full_name}.gem", package.gem.io.string)
+    end
 
     MockGem.new(
       name: name,

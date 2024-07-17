@@ -70,24 +70,43 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       io.binmode
       package = Gem::Package.new(io)
       actual = []
+
+      presence = proc do |x|
+        x if x && !x.empty?
+      end
+
       dump_tar = proc do |tar_io, into = actual|
         Gem::Package::TarReader.new(tar_io) do |gem|
           gem.each do |entry|
             body = entry.read
-            body = Zlib.gunzip(body) if entry.full_name.end_with?(".gz")
+            extra = nil
+            if entry.full_name.end_with?(".gz")
+              extra = Zlib::GzipReader.wrap(StringIO.new(body)) do |gz|
+                magic, compression_method, flags, mtime, compression, os_id = body.unpack("H4ccVcC")
+                {
+                  magic: magic, compression_method: compression_method, flags: flags, mtime: mtime,
+                  compression: compression, os_id: os_id, comment: presence[gz.comment], crc: gz.crc,
+                  orig_name: presence[gz.orig_name]
+                }.compact
+              end
+              body = Zlib.gunzip(body)
+            end
             body = dump_tar[StringIO.new(body), []] if entry.full_name.end_with?(".tar.gz")
 
             into << {
               header: entry.header.instance_variables.to_h do |ivar|
                         [ivar.to_s.tr("@", "").to_sym, entry.header.instance_variable_get(ivar)]
                       end,
-              body: body
-            }
+              body: body,
+              extra: extra
+            }.compact
           end
         end
         into
       end
       package.gem.with_read_io(&dump_tar)
+      expected_gz_extra = { compression: 2, compression_method: 8, crc: 0, flags: 0, magic: "1f8b", mtime: 0,
+                            os_id: 3 }
       expect(actual).to eq(
         [{ body: <<~YAML,
           --- !ruby/object:Gem::Specification
@@ -142,7 +161,8 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                      typeflag: "0",
                      uid: 0,
                      uname: "wheel",
-                     version: 0 } },
+                     version: 0 },
+           extra: expected_gz_extra },
          { body: [],
            header: { checksum: 5834,
                      devmajor: 0,
@@ -160,7 +180,8 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                      typeflag: "0",
                      uid: 0,
                      uname: "wheel",
-                     version: 0 } },
+                     version: 0 },
+           extra: expected_gz_extra },
          { body: <<~YAML,
            ---
            SHA256:
@@ -186,7 +207,8 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                      typeflag: "0",
                      uid: 0,
                      uname: "wheel",
-                     version: 0 } }]
+                     version: 0 },
+           extra: expected_gz_extra }]
       )
     end
 
