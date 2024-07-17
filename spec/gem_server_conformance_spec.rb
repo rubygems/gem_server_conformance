@@ -61,6 +61,140 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                                     } do
     pushed_gem("a-1.0.0")
 
+    @ctx.it "has the exact contents as expected" do
+      allow(RSpec::Support::ObjectFormatter.default_instance).to receive(:prepare_for_inspection).and_call_original
+      allow(RSpec::Support::ObjectFormatter.default_instance)
+        .to receive(:prepare_for_inspection).with(an_instance_of(String)) { |s| s }
+      io = StringIO.new(@gem_a_1_0_0.contents)
+      io.binmode
+      package = Gem::Package.new(io)
+      actual = []
+      dump_tar = proc do |tar_io, into = actual|
+        Gem::Package::TarReader.new(tar_io) do |gem|
+          gem.each do |entry|
+            body = entry.read
+            body = Zlib.gunzip(body) if entry.full_name.end_with?(".gz")
+            body = dump_tar[StringIO.new(body), []] if entry.full_name.end_with?(".tar.gz")
+
+            into << {
+              header: entry.header.instance_variables.to_h do |ivar|
+                        [ivar.to_s.tr("@", "").to_sym, entry.header.instance_variable_get(ivar)]
+                      end,
+              body: body
+            }
+          end
+        end
+        into
+      end
+      package.gem.with_read_io(&dump_tar)
+      expect(actual).to eq(
+        [{ body: <<~YAML,
+          --- !ruby/object:Gem::Specification
+          name: a
+          version: !ruby/object:Gem::Version
+            version: 1.0.0
+          platform: ruby
+          authors:
+          - Conformance
+          autorequire:
+          bindir: bin
+          cert_chain: []
+          date: 2024-07-09 00:00:00.000000000 Z
+          dependencies: []
+          description:
+          email:
+          executables: []
+          extensions: []
+          extra_rdoc_files: []
+          files: []
+          homepage:
+          licenses: []
+          metadata: {}
+          post_install_message:
+          rdoc_options: []
+          require_paths:
+          - lib
+          required_ruby_version: !ruby/object:Gem::Requirement
+            requirements:
+            - - ">="
+              - !ruby/object:Gem::Version
+                version: '0'
+          required_rubygems_version: !ruby/object:Gem::Requirement
+            requirements:
+            - - ">="
+              - !ruby/object:Gem::Version
+                version: '0'
+          requirements: []
+          rubygems_version: 3.5.11
+          signing_key:
+          specification_version: 4
+          summary: Conformance test
+          test_files: []
+        YAML
+           header: { checksum: 5892,
+                     devmajor: 0,
+                     devminor: 0,
+                     empty: false,
+                     gid: 0,
+                     gname: "wheel",
+                     linkname: "",
+                     magic: "ustar",
+                     mode: 292,
+                     mtime: 0,
+                     name: "metadata.gz",
+                     prefix: "",
+                     size: 365,
+                     typeflag: "0",
+                     uid: 0,
+                     uname: "wheel",
+                     version: 0 } },
+         { body: [],
+           header: { checksum: 5833,
+                     devmajor: 0,
+                     devminor: 0,
+                     empty: false,
+                     gid: 0,
+                     gname: "wheel",
+                     linkname: "",
+                     magic: "ustar",
+                     mode: 292,
+                     mtime: 0,
+                     name: "data.tar.gz",
+                     prefix: "",
+                     size: 20,
+                     typeflag: "0",
+                     uid: 0,
+                     uname: "wheel",
+                     version: 0 } },
+         { body: <<~YAML,
+           ---
+           SHA256:
+             metadata.gz: 91310c40bdbd518a6b77e0277f73f7a7d8b4d3f9aadbbf8e62adb2b63c8e61d1
+             data.tar.gz: f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec
+           SHA512:
+             metadata.gz: f62de0d02c815d25499d0b27fcc4ca0cf61d35df51bcc0c613eb30520226629f962a3c57447dfb99e03a554043bdaa2736eeb2aa4af06e41f09337efda96521e
+             data.tar.gz: 1b46b9b08d5b338be9d732a1724795b2eab63daffde377218727c90857b79fe6a47bceed495117fcde60f7339812ef75ef4c69f82dd79fb69b6cbf8006b521f2
+         YAML
+           header: { checksum: 6500,
+                     devmajor: 0,
+                     devminor: 0,
+                     empty: false,
+                     gid: 0,
+                     gname: "wheel",
+                     linkname: "",
+                     magic: "ustar",
+                     mode: 292,
+                     mtime: 0,
+                     name: "checksums.yaml.gz",
+                     prefix: "",
+                     size: 296,
+                     typeflag: "0",
+                     uid: 0,
+                     uname: "wheel",
+                     version: 0 } }]
+      )
+    end
+
     request :get_versions, compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
 
@@ -417,7 +551,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
   .then "after yanking a missing gem", before:
     lambda { |_|
       yank_gem(RequestHelpers::MockGem.new(name: "missing", version: "1.0.0"), expected_to: be_not_found)
-    } do
+    } do # rubocop:disable RSpec/ReturnFromStub
     nil
   end
 end

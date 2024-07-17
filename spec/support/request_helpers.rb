@@ -31,6 +31,7 @@ module RequestHelpers
           package.gzip_to io do |gz_io|
             yaml = spec.to_yaml
             yaml.sub!(/^rubygems_version: .*/, "rubygems_version: 3.5.11")
+            yaml.gsub!(/^(\w*[a-z_]+:) \n/, "\\1\n")
             gz_io.write yaml
           end
         end
@@ -224,7 +225,6 @@ module RequestHelpers
     attr_reader :response
 
     def initialize(response)
-      response.body_encoding = Encoding::BINARY
       @response = response
     end
 
