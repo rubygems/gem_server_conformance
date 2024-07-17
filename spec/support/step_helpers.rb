@@ -39,17 +39,6 @@ module StepHelpers
       end
     end
 
-    # class NullReporter
-    #   def self.method_missing(...)
-    #     pp(...)
-    #   end
-
-    #   def self.example_failed(ex)
-    #     pp ex
-    #     puts ex.display_exception.full_message
-    #   end
-    # end
-
     def request(method, *args, **kwargs, &blk)
       name = method.to_s
       name += "(#{args.map(&:inspect).join(", ")})" unless args.empty?
@@ -147,10 +136,13 @@ module StepHelpers
           before(:all) do
             @upstream = ENV.fetch("UPSTREAM", nil)
             unless upstream
+              @upstream_output = Tempfile.create("upstream.out").path
               Bundler.with_original_env do
                 @upstream = "http://localhost:4567"
-                @pid = spawn("ruby", "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: "/dev/null",
-                                                                                                err: "/dev/null")
+                @pid = spawn("ruby", "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: @upstream_output,
+                                                                                                err: @upstream_output)
+                raise "failed to start server" unless @pid
+
                 sleep 1
               end
             end
@@ -163,6 +155,8 @@ module StepHelpers
             if @pid
               Process.kill "TERM", @pid
               Process.wait @pid
+              expect($?).to be_success, "Upstream server failed:\n\n#{File.read(@upstream_output)}"
+              File.unlink @upstream_output
             end
           end
         end
