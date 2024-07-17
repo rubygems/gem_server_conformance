@@ -142,22 +142,32 @@ module StepHelpers
                 @pid = spawn("ruby", "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: @upstream_output,
                                                                                                 err: @upstream_output)
                 raise "failed to start server" unless @pid
-
-                sleep 1
               end
             end
 
             @all_gems = []
-            set_time Time.utc(1990)
+            retries = 50
+            loop do
+              set_time Time.utc(1990)
+              break
+            rescue Errno::ECONNREFUSED
+              retries -= 1
+              raise "Failed to boot gem_server_conformance/server in under 5 seconds" if retries.zero?
+
+              sleep 0.1
+            else
+              break
+            end
           end
 
           after(:all) do
             if @pid
               Process.kill "TERM", @pid
               Process.wait @pid
-              expect($?).to be_success, "Upstream server failed:\n\n#{File.read(@upstream_output)}"
-              File.unlink @upstream_output
+              expect($?).to be_success, "Upstream server failed #{$?.inspect}:\n\n#{File.read(@upstream_output)}"
             end
+          ensure
+            File.unlink @upstream_output if @upstream_output
           end
         end
       end
