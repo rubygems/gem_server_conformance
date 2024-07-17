@@ -8,6 +8,21 @@ module RequestHelpers
     base.attr_reader :last_response
   end
 
+  module SpecificationToYamlNormalization
+    class CoderWrapper < SimpleDelegator
+      def add(key, value)
+        value = "3.5.11" if key == "rubygems_version"
+        return if value.nil?
+
+        super
+      end
+    end
+
+    def encode_with(coder)
+      super(CoderWrapper.new(coder))
+    end
+  end
+
   def build_gem(name, version, platform: nil)
     spec = Gem::Specification.new do |s|
       s.name = name
@@ -20,35 +35,14 @@ module RequestHelpers
     end
     yield spec if block_given?
 
+    spec.singleton_class.prepend(SpecificationToYamlNormalization) if Gem.rubygems_version < Gem::Version.new("3.6.0")
+
     package = Gem::Package.new(StringIO.new.binmode)
     package.build_time = Time.utc(1970)
     package.spec = spec
-    package.setup_signer
-    signer = package.instance_variable_get(:@signer)
-    package.gem.with_write_io do |gem_io|
-      Gem::Package::TarWriter.new gem_io do |gem|
-        digests = gem.add_file_signed "metadata.gz", 0o444, signer do |io|
-          package.gzip_to io do |gz_io|
-            yaml = spec.to_yaml
-            yaml.sub!(/^rubygems_version: .*/, "rubygems_version: 3.5.11")
-            yaml.gsub!(/^(\w*[a-z_]+:) \n/, "\\1\n")
-            gz_io.write yaml
-          end
-        end
-        checksums = package.instance_variable_get(:@checksums)
-        checksums["metadata.gz"] = digests
+    package.gem.singleton_class.send(:define_method, :path) { "" }
 
-        digests = gem.add_file_signed "data.tar.gz", 0o444, signer do |io|
-          package.gzip_to io do |gz_io|
-            # no files
-            Gem::Package::TarWriter.new gz_io
-          end
-        end
-        checksums["data.tar.gz"] = digests
-
-        package.add_checksums gem
-      end
-    end
+    package.build
 
     MockGem.new(
       name: name,
@@ -119,7 +113,7 @@ module RequestHelpers
       request["Content-Type"] = "application/octet-stream"
       request.add_field "Authorization", Pusher.api_key
     end.tap do
-      expect(last_response).to expected_to
+      expect(last_response).to expected_to, last_response.body
       set_time @time + 60
     end
   end
