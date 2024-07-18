@@ -7,6 +7,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
 
   before(:all) do
     Gem.configuration.verbose = false
+    Gem::DefaultUserInteraction.ui = Gem::SilentUI.new
     ENV["SOURCE_DATE_EPOCH"] = "0"
   end
 
@@ -69,24 +70,43 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       io.binmode
       package = Gem::Package.new(io)
       actual = []
+
+      presence = proc do |x|
+        x if x && !x.empty?
+      end
+
       dump_tar = proc do |tar_io, into = actual|
         Gem::Package::TarReader.new(tar_io) do |gem|
           gem.each do |entry|
             body = entry.read
-            body = Zlib.gunzip(body) if entry.full_name.end_with?(".gz")
+            extra = nil
+            if entry.full_name.end_with?(".gz")
+              extra = Zlib::GzipReader.wrap(StringIO.new(body)) do |gz|
+                magic, compression_method, flags, mtime, compression, os_id = body.unpack("H4ccVcC")
+                {
+                  magic: magic, compression_method: compression_method, flags: flags, mtime: mtime,
+                  compression: compression, os_id: os_id, comment: presence[gz.comment], crc: gz.crc,
+                  orig_name: presence[gz.orig_name]
+                }.compact
+              end
+              body = Zlib.gunzip(body)
+            end
             body = dump_tar[StringIO.new(body), []] if entry.full_name.end_with?(".tar.gz")
 
             into << {
               header: entry.header.instance_variables.to_h do |ivar|
                         [ivar.to_s.tr("@", "").to_sym, entry.header.instance_variable_get(ivar)]
                       end,
-              body: body
-            }
+              body: body,
+              extra: extra
+            }.compact
           end
         end
         into
       end
       package.gem.with_read_io(&dump_tar)
+      expected_gz_extra = { compression: 2, compression_method: 8, crc: 0, flags: 0, magic: "1f8b", mtime: 0,
+                            os_id: 3 }
       expect(actual).to eq(
         [{ body: <<~YAML,
           --- !ruby/object:Gem::Specification
@@ -96,21 +116,16 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
           platform: ruby
           authors:
           - Conformance
-          autorequire:
           bindir: bin
           cert_chain: []
           date: 2024-07-09 00:00:00.000000000 Z
           dependencies: []
-          description:
-          email:
           executables: []
           extensions: []
           extra_rdoc_files: []
           files: []
-          homepage:
           licenses: []
           metadata: {}
-          post_install_message:
           rdoc_options: []
           require_paths:
           - lib
@@ -126,12 +141,11 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                 version: '0'
           requirements: []
           rubygems_version: 3.5.11
-          signing_key:
           specification_version: 4
           summary: Conformance test
           test_files: []
         YAML
-           header: { checksum: 5892,
+           header: { checksum: 5894,
                      devmajor: 0,
                      devminor: 0,
                      empty: false,
@@ -143,13 +157,14 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                      mtime: 0,
                      name: "metadata.gz",
                      prefix: "",
-                     size: 365,
+                     size: 318,
                      typeflag: "0",
                      uid: 0,
                      uname: "wheel",
-                     version: 0 } },
+                     version: 0 },
+           extra: expected_gz_extra },
          { body: [],
-           header: { checksum: 5833,
+           header: { checksum: 5834,
                      devmajor: 0,
                      devminor: 0,
                      empty: false,
@@ -161,21 +176,22 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                      mtime: 0,
                      name: "data.tar.gz",
                      prefix: "",
-                     size: 20,
+                     size: 35,
                      typeflag: "0",
                      uid: 0,
                      uname: "wheel",
-                     version: 0 } },
+                     version: 0 },
+           extra: expected_gz_extra },
          { body: <<~YAML,
            ---
            SHA256:
-             metadata.gz: 91310c40bdbd518a6b77e0277f73f7a7d8b4d3f9aadbbf8e62adb2b63c8e61d1
-             data.tar.gz: f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec
+             metadata.gz: 5a1eb70f836c830856bd6ff54ae48916e6f5f297608012575884131c74089b36
+             data.tar.gz: 6578c1623326a8b876f84c946634f7208ce54f23a75fa5775b44469ddb08a8e7
            SHA512:
-             metadata.gz: f62de0d02c815d25499d0b27fcc4ca0cf61d35df51bcc0c613eb30520226629f962a3c57447dfb99e03a554043bdaa2736eeb2aa4af06e41f09337efda96521e
-             data.tar.gz: 1b46b9b08d5b338be9d732a1724795b2eab63daffde377218727c90857b79fe6a47bceed495117fcde60f7339812ef75ef4c69f82dd79fb69b6cbf8006b521f2
+             metadata.gz: 26dbf51d174890d592f13c0bccc6638e02e34f603684e9df7320508f777bf9da5061dd13f8262eef47ddcc0d975e33a9eead945de9544bbb4fd9358cfda0f026
+             data.tar.gz: ea28bfbb44a5ca539ed7b50c492c0a5aa6cce60f7babad5c65cb2aca5c100ac350fb28eeb1c4ae32c8cf22c2724595b946e1cb12f521eeaf0a7246a26aad00a0
          YAML
-           header: { checksum: 6500,
+           header: { checksum: 6506,
                      devmajor: 0,
                      devminor: 0,
                      empty: false,
@@ -187,11 +203,12 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
                      mtime: 0,
                      name: "checksums.yaml.gz",
                      prefix: "",
-                     size: 296,
+                     size: 295,
                      typeflag: "0",
                      uid: 0,
                      uname: "wheel",
-                     version: 0 } }]
+                     version: 0 },
+           extra: expected_gz_extra }]
       )
     end
 
@@ -200,7 +217,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
 
       it {
         is_expected.to have_body(
-          parent_response.body + "a 1.0.0 8761412e66a014fe80723e251d96be29\n"
+          parent_response.body + "a 1.0.0 443730449deef440bd299e19554793f0\n"
         )
       }
     end
@@ -209,7 +226,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       it { is_expected.to be_ok }
       it { is_expected.to have_body(<<~INFO) }
         ---
-        1.0.0 |checksum:2dfc054a348d36faae6e98e8c0222a76c07cfa0620b3c47acb154cb3d2de149b
+        1.0.0 |checksum:9bc2cb93a200173fcd556c6c674bb4cdbce9b284e5dea0be9c21ee801f38b821
       INFO
       it { is_expected.to have_header("content-type").with_value("text/plain; charset=utf-8") }
     end
@@ -286,15 +303,15 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
     request :get_versions, compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(parent_response.body + <<~BODY) }
-        a 0.0.1 22428c91ad748146bec818307104ed33
-        b 1.0.0.pre 688f5cdf79887aff5d87c86f36cfe063
+        a 0.0.1 8ffe0a0dda27362c6f916d3941a5726e
+        b 1.0.0.pre f0d229a9323895e2e1c85f496b5f10b5
       BODY
     end
 
     request :get_info, "a", compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(parent_response.body + <<~INFO) }
-        0.0.1 |checksum:5e25d516b8c19c9d26ef95efad565c2097865a0d3dba5ef3fade650a2e690b35
+        0.0.1 |checksum:a2bee9c1c6b2ab54a19c4d4644663eda25c2326bebe0eb9f9c097a2a11fd6203
       INFO
     end
 
@@ -302,7 +319,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(<<~INFO) }
         ---
-        1.0.0.pre a:< 1.0.0&>= 0.1.0|checksum:3f97419b7c35257f7aab3ae37521ab64ef8ec7646ef55b9f6a5e41d479bc128c,ruby:>= 2.0,rubygems:>= 2.0
+        1.0.0.pre a:< 1.0.0&>= 0.1.0|checksum:4096fbca288dcf4b4cea8bbebdea5d10d6b3f4fd2ff3c13124852854d5d7d24b,ruby:>= 2.0,rubygems:>= 2.0
       INFO
     end
 
@@ -402,18 +419,18 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
     request :get_versions, compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(parent_response.body + <<~BODY) }
-        a 0.2.0 7a7528379bbd1e0420ea7f1305ba526a
-        a 0.2.0-x86-mingw32 17f9c2882d6f0a244f8bba2df1d14107
-        a 0.2.0-java ca5c12bc8ba4457ada41c71bee282bfb
+        a 0.2.0 66fab29417d3142772e0f2467b92d684
+        a 0.2.0-x86-mingw32 fd6d38ccbc3556b4426c65fceed9c717
+        a 0.2.0-java 704774b40118bdb16676deee38a99030
       BODY
     end
 
     request :get_info, "a", compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(parent_response.body + <<~INFO) }
-        0.2.0 |checksum:a1753a0e8b6f0515a15e9cfa4ea143e36de235525f6f68c4ff45c4ae70be072f
-        0.2.0-x86-mingw32 |checksum:e330e73d0dec030107c5656bbe89aecae738ba483471bf87f1bd943093fc9f27
-        0.2.0-java |checksum:897332272ac159bf200a690dae5039df1e60355124848f2a6f889563311421f4
+        0.2.0 |checksum:6f2d3eb31a402d2be7c7d51d52e22ba9c86ca7b0641a3debfb3deadedc19301f
+        0.2.0-x86-mingw32 |checksum:d2bb53926789434de893cf0a7a872bd887440f6e4edfec15626961d5431aad8a
+        0.2.0-java |checksum:63ed6f9d68ebfea869389a9227c8c041b9ed7a0ea68dbe37ee12aaa17406c524
       INFO
     end
 
@@ -457,8 +474,8 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       it { is_expected.to have_body(<<~BODY) }
         created_at: 1990-01-01T01:08:00Z
         ---
-        a 0.0.1,0.2.0,0.2.0-x86-mingw32,0.2.0-java ca5c12bc8ba4457ada41c71bee282bfb
-        b 1.0.0.pre 688f5cdf79887aff5d87c86f36cfe063
+        a 0.0.1,0.2.0,0.2.0-x86-mingw32,0.2.0-java 704774b40118bdb16676deee38a99030
+        b 1.0.0.pre f0d229a9323895e2e1c85f496b5f10b5
       BODY
     end
   end
@@ -468,14 +485,14 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
     request :get_versions, compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(parent_response.body + <<~BODY) }
-        a 0.3.0 6263c53d5a23dfe0339a3ebae0fed8da
+        a 0.3.0 6d832e39a3fcc2e49f17db8023b3db31
       BODY
     end
 
     request :get_info, "a", compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
       it { is_expected.to have_body(parent_response.body + <<~INFO) }
-        0.3.0 |checksum:40f19de3ce5c3fc5930fbc5dc3a08cd0b31572852d4885b37a19039bad7d9784
+        0.3.0 |checksum:896df5352ce069a200e283d04bf2cbadcc5f779de5a0bb31074a406b3642a8a3
       INFO
     end
 
@@ -506,7 +523,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
 
     request :get_versions, compact_index: true do
       it { is_expected.to be_valid_compact_index_reponse }
-      it { is_expected.to have_body(parent_response.body + "a -0.2.0 1fdcc4d621638a6ba75d8ed88b09f97a\n") }
+      it { is_expected.to have_body(parent_response.body + "a -0.2.0 474751e9d427e559781d7e222b368085\n") }
     end
 
     request :get_info, "a", compact_index: true do
@@ -515,7 +532,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       it {
         is_expected.to have_body(
           parent_response.body.lines.tap do |lines|
-            lines.delete("0.2.0 |checksum:a1753a0e8b6f0515a15e9cfa4ea143e36de235525f6f68c4ff45c4ae70be072f\n")
+            lines.delete("0.2.0 |checksum:6f2d3eb31a402d2be7c7d51d52e22ba9c86ca7b0641a3debfb3deadedc19301f\n")
           end.join
         )
       }
@@ -543,8 +560,8 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
       it { is_expected.to have_body(<<~VERSIONS) }
         created_at: 1990-01-01T02:10:00Z
         ---
-        a 0.0.1,0.2.0-x86-mingw32,0.2.0-java,0.3.0 1fdcc4d621638a6ba75d8ed88b09f97a
-        b 1.0.0.pre 688f5cdf79887aff5d87c86f36cfe063
+        a 0.0.1,0.2.0-x86-mingw32,0.2.0-java,0.3.0 474751e9d427e559781d7e222b368085
+        b 1.0.0.pre f0d229a9323895e2e1c85f496b5f10b5
       VERSIONS
     end
   end

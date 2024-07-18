@@ -39,17 +39,6 @@ module StepHelpers
       end
     end
 
-    # class NullReporter
-    #   def self.method_missing(...)
-    #     pp(...)
-    #   end
-
-    #   def self.example_failed(ex)
-    #     pp ex
-    #     puts ex.display_exception.full_message
-    #   end
-    # end
-
     def request(method, *args, **kwargs, &blk)
       name = method.to_s
       name += "(#{args.map(&:inspect).join(", ")})" unless args.empty?
@@ -147,23 +136,38 @@ module StepHelpers
           before(:all) do
             @upstream = ENV.fetch("UPSTREAM", nil)
             unless upstream
+              @upstream_output = Tempfile.create("upstream.out").path
               Bundler.with_original_env do
                 @upstream = "http://localhost:4567"
-                @pid = spawn("ruby", "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: "/dev/null",
-                                                                                                err: "/dev/null")
-                sleep 1
+                @pid = spawn(Gem.ruby, "-rbundler/setup", "lib/gem_server_conformance/server.rb", out: @upstream_output,
+                                                                                                  err: @upstream_output)
+                raise "failed to start server" unless @pid
               end
             end
 
             @all_gems = []
-            set_time Time.utc(1990)
+            retries = 150
+            loop do
+              set_time Time.utc(1990)
+              break
+            rescue Errno::ECONNREFUSED
+              retries -= 1
+              raise "Failed to boot gem_server_conformance/server in under 5 seconds" if retries.zero?
+
+              sleep 0.1
+            else
+              break
+            end
           end
 
           after(:all) do
             if @pid
               Process.kill "TERM", @pid
               Process.wait @pid
+              expect($?).to be_success, "Upstream server failed #{$?.inspect}:\n\n#{File.read(@upstream_output)}"
             end
+          ensure
+            File.unlink @upstream_output if @upstream_output
           end
         end
       end

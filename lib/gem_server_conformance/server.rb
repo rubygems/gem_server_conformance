@@ -112,6 +112,11 @@ module GemServerConformance
 
     def push(gem)
       package = Gem::Package.new(StringIO.new(gem))
+      begin
+        package.spec
+      rescue Gem::Package::FormatError, Psych::SyntaxError => e
+        return [400, {}, ["Invalid gem: #{e.message}"]]
+      end
       log "Pushed #{package.spec.full_name}"
       if @versions.any? { |v| v.package.spec.full_name == package.spec.full_name }
         return [409, {}, ["Conflict: #{package.spec.full_name} already exists"]]

@@ -8,6 +8,49 @@ module RequestHelpers
     base.attr_reader :last_response
   end
 
+  module SpecificationToYamlNormalization
+    class CoderWrapper < SimpleDelegator
+      def add(key, value)
+        value = "3.5.11" if key == "rubygems_version"
+        return if value.nil?
+
+        super
+      end
+    end
+
+    def encode_with(coder)
+      super(CoderWrapper.new(coder))
+    end
+  end
+
+  module PackageGzipToConsistentOS
+    class IOWrapper < SimpleDelegator
+      def write(str)
+        str[9] = "\x03".b if str.size == 10 && str.start_with?("\x1f\x8b".b)
+        super
+      end
+    end
+
+    def gzip_to(io, &blk)
+      super(IOWrapper.new(io), &blk)
+    end
+  end
+
+  ::Gem::Dependency.class_eval do
+    if Gem::Dependency.method_defined?(:to_yaml_properties)
+      prepend(
+        Module.new do
+          def to_yaml_properties
+            expected = %i[@name @requirement @type @prerelease @version_requirements]
+            actual = super
+
+            (expected & actual) + (actual - expected)
+          end
+        end
+      )
+    end
+  end
+
   def build_gem(name, version, platform: nil)
     spec = Gem::Specification.new do |s|
       s.name = name
@@ -20,34 +63,20 @@ module RequestHelpers
     end
     yield spec if block_given?
 
+    spec.singleton_class.prepend(SpecificationToYamlNormalization) if Gem.rubygems_version < Gem::Version.new("3.6.0")
+
     package = Gem::Package.new(StringIO.new.binmode)
     package.build_time = Time.utc(1970)
     package.spec = spec
-    package.setup_signer
-    signer = package.instance_variable_get(:@signer)
-    package.gem.with_write_io do |gem_io|
-      Gem::Package::TarWriter.new gem_io do |gem|
-        digests = gem.add_file_signed "metadata.gz", 0o444, signer do |io|
-          package.gzip_to io do |gz_io|
-            yaml = spec.to_yaml
-            yaml.sub!(/^rubygems_version: .*/, "rubygems_version: 3.5.11")
-            yaml.gsub!(/^(\w*[a-z_]+:) \n/, "\\1\n")
-            gz_io.write yaml
-          end
-        end
-        checksums = package.instance_variable_get(:@checksums)
-        checksums["metadata.gz"] = digests
+    package.singleton_class.prepend(PackageGzipToConsistentOS)
+    package.gem.singleton_class.send(:define_method, :path) { "" }
 
-        digests = gem.add_file_signed "data.tar.gz", 0o444, signer do |io|
-          package.gzip_to io do |gz_io|
-            # no files
-            Gem::Package::TarWriter.new gz_io
-          end
-        end
-        checksums["data.tar.gz"] = digests
+    package.build
 
-        package.add_checksums gem
-      end
+    if ENV["DUMP_BUILD_GEM"]
+      tmp = "build_gem/#{RUBY_ENGINE}/rubygems-#{Gem::VERSION}/#{@time}"
+      FileUtils.mkdir_p(tmp)
+      File.binwrite("#{tmp}/#{spec.full_name}.gem", package.gem.io.string)
     end
 
     MockGem.new(
@@ -119,7 +148,7 @@ module RequestHelpers
       request["Content-Type"] = "application/octet-stream"
       request.add_field "Authorization", Pusher.api_key
     end.tap do
-      expect(last_response).to expected_to
+      expect(last_response).to expected_to, last_response.body
       set_time @time + 60
     end
   end
