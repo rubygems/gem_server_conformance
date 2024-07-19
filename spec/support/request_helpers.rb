@@ -3,6 +3,9 @@
 require "delegate"
 require "forwardable"
 require "rubygems/gemcutter_utilities"
+require "rubygems/package"
+require "time"
+require "uri"
 
 module RequestHelpers
   def self.included(base)
