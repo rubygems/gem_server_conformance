@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "support/step_helpers"
+require "gem_server_conformance/version"
 
 RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
   include StepHelpers
