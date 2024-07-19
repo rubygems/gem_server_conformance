@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 ENV["RACK_ENV"] = ENV["APP_ENV"] = "test"
-require "gem_server_conformance/server"
 require_relative "support/request_helpers"
 
 RSpec.configure do |config|

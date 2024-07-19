@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "delegate"
+require "forwardable"
 require "rubygems/gemcutter_utilities"
 
 module RequestHelpers

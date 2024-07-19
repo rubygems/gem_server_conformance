@@ -136,6 +136,8 @@ module StepHelpers
           before(:all) do
             @upstream = ENV.fetch("UPSTREAM", nil)
             unless upstream
+              require "gem_server_conformance/server"
+
               @upstream_output = Tempfile.create("upstream.out").path
               Bundler.with_original_env do
                 @upstream = "http://localhost:4567"
