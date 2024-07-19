@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    gem_server_conformance (0.1.1)
+    gem_server_conformance (0.1.2)
       rspec (~> 3.0)
 
 GEM
