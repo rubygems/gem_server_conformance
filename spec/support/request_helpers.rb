@@ -17,6 +17,7 @@ module RequestHelpers
     class CoderWrapper < SimpleDelegator
       def add(key, value)
         value = "3.5.11" if key == "rubygems_version"
+        value = nil if key == "original_platform" && value == ""
         return if value.nil?
 
         super
@@ -68,7 +69,7 @@ module RequestHelpers
     end
     yield spec if block_given?
 
-    spec.singleton_class.prepend(SpecificationToYamlNormalization) if Gem.rubygems_version < Gem::Version.new("3.6.0")
+    spec.singleton_class.prepend(SpecificationToYamlNormalization)
 
     package = Gem::Package.new(StringIO.new.binmode)
     package.build_time = Time.utc(1970)
