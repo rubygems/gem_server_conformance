@@ -28,7 +28,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@3a77c29278ae80936b4cb030fefc7d21c96c786f # v1.185.0
         with:
-          bundler-cache: false
+          bundler-cache: true
           ruby-version: ruby
 
       # Release
