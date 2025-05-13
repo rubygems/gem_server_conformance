@@ -6,7 +6,7 @@ source "https://rubygems.org"
 gemspec
 
 gem "compact_index", "~> 0.15.0"
-gem "rackup", "~> 2.0.0"
+gem "rackup", "~> 2.0"
 gem "rake", "~> 13.0"
 gem "rubocop", "~> 1.21"
 gem "rubocop-performance", "~> 1.21"
