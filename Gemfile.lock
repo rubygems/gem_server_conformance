@@ -29,9 +29,9 @@ GEM
       rack (>= 3.0.0, < 4)
     rack-session (2.0.0)
       rack (>= 3.0.0)
-    rackup (2.1.0)
+    rackup (2.0.0)
       rack (>= 3)
-      webrick (~> 1.8)
+      webrick
     rainbow (3.1.1)
     rake (13.2.1)
     regexp_parser (2.9.2)
@@ -79,7 +79,7 @@ GEM
       tilt (~> 2.0)
     tilt (2.4.0)
     unicode-display_width (2.5.0)
-    webrick (1.8.2)
+    webrick (1.9.1)
 
 PLATFORMS
   arm64-darwin
@@ -93,7 +93,7 @@ DEPENDENCIES
   compact_index (~> 0.15.0)
   gem_server_conformance!
   logger (~> 1.7)
-  rackup (~> 2.0)
+  rackup (~> 2.0.0)
   rake (~> 13.0)
   rubocop (~> 1.21)
   rubocop-performance (~> 1.21)
