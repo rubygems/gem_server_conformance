@@ -546,7 +546,7 @@ RSpec.describe GemServerConformance do # rubocop:disable RSpec/EmptyExampleGroup
         .metadata[:content_length_header] = true
       it {
         is_expected.to unmarshal_as(
-          a_collection_containing_exactly( \
+          a_collection_containing_exactly(
             *Marshal.load(Zlib.gunzip(parent_response.body)).tap do |entries|
               entries.delete(["a", Gem::Version.new("0.2.0"), "ruby"])
             end
