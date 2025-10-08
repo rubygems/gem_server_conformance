@@ -12,6 +12,7 @@ gem "rubocop-performance"
 gem "rubocop-rake"
 gem "rubocop-rspec"
 gem "sinatra"
+gem "webrick"
 
 # for missing dependency of rack-protection
 gem "logger"
